@@ -1,0 +1,201 @@
+---
+title: "project_pricing"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r cars}
+online_retail <- read.csv("C:/Users/Indhujha Natarajan/Dropbox/Harrisburg/Semester 3/Project_pricing/Online Retail.csv")
+summary(online_retail)
+
+online_retail_new <- online_retail[online_retail$UnitPrice > 0.01 & online_retail$Quantity > 0,] #minimum price to get good read of results.
+summary(online_retail_new)
+
+online_retail_new$StockCode <- as.character(online_retail_new$StockCode)
+online_retail_new$StockCode <- toupper(online_retail_new$StockCode) #convert all to uppercase to remove duplicates
+item1 <- unique(online_retail_new$Description)
+
+item <- unique(online_retail_new$StockCode)
+write.csv(item,"item.csv")
+df_fitted <- data.frame(intercept=c(),price=c(),ino=c(),arsquared=c())
+
+rng <- 1:length(item)
+for (i in rng) {
+  ino <- item[i]
+df0 <- subset(online_retail_new,online_retail_new$StockCode == ino)
+df1 <- lm(log(Quantity) ~ log(UnitPrice),data = df0)
+df3 <- summary(df1)
+df2 <- cbind(df1$coefficient[1],df1$coefficient[2],ino,df3$adj.r.squared)          
+    df_fitted <- rbind(df_fitted, df2)
+
+}
+
+names(df_fitted) <- c("intercept","coeff.price","StockCode","adj.r.squared")
+write.csv(df_fitted,"df_fitted_item_f.csv",row.names = F)
+
+df_fitted1 <- na.omit(df_fitted)
+df_fitted1 <- df_fitted1[df_fitted1$adj.r.squared != "NaN",]
+df_fitted1.1 <- df_fitted1
+df_fitted1.1[,4] <- as.numeric(as.matrix(df_fitted1.1)[,4])
+df_fitted1.1 <- df_fitted1.1[df_fitted1.1$adj.r.squared >= 0.7,]
+write.csv(df_fitted1,"df_fitted_clean.csv",row.names = F)
+
+# calculated from the model
+
+item_final <- as.character(df_fitted1.1$StockCode)
+df_fitted2 <- df_fitted1.1
+
+online_retail_new_1 <- merge(online_retail_new,df_fitted2,by.y="StockCode")
+
+ctr <- 1:length(item_final)
+price_all <- data.frame(StockCode=c(),price=c(),Quantity=c())
+rev_price <- data.frame(StockCode=c(), rev=c(),opt_price=c())
+
+for (i in ctr)
+  {
+  ino1 <- item_final[i]
+  #ino1 <- '84805B'
+  df0 <- online_retail_new_1[online_retail_new_1$StockCode == ino1,]
+  df0[,9] <- as.numeric(as.matrix(df0)[,9])
+  df0[,10] <- as.numeric(as.matrix(df0)[,10])
+  price <- exp((log(df0[,4]) - df0[,9])/df0[,10]) #assuming demand will be similar in future
+  df1 <- cbind.data.frame(ino1,log(price),log(df0[,4]))
+  df1[,2] <- as.numeric(as.matrix(df1)[,2])
+  df1[,3] <- as.numeric(as.matrix(df1)[,3])
+  names(df1) <- c("StockCode","log_price","log_Quantity")
+ #price_all <- rbind(price_all,df1)
+  df2 <- df1[df1$StockCode==ino1,]
+  df2$revenue <- exp(df2[,2]) * exp(df2[,3])
+  par(mfrow=c(1, 2))
+  plot(exp(df2[,3]),exp(df2[,2]),xlab = "Quantity",ylab = "Price",main = ino1)
+  plot(exp(df2[,2]),df2$revenue,xlab="price", ylab="Revenue",main="Revenue")
+  rev_max <- max(df2$revenue)
+  print("Maximum revenue")
+  print(rev_max)
+  price_opt <- df2[df2$revenue == max(df2$revenue),2]
+  opt_final <- unique(exp(price_opt))
+  print("Optimum price")
+  print(opt_final)
+  df4 <- cbind.data.frame(df2$StockCode,rev_max,opt_final)
+  names(df4) <- c("Stockcode","rev","opt_price")
+  rev_price <- rbind(rev_price,df4)
+}
+rev_price <- unique(rev_price)
+write.csv(rev_price,"rev_price.csv",row.names = F)
+
+
+```
+
+```{r}
+#84805B - The same curves have been made using curve function for one of the items
+quantity <- function(price){exp(3.26 + 1.94*log(price))}
+revenue <- function(price) { price * quantity(price) }
+par(mfrow=c(1, 2))
+curve(quantity, from=0, to=100, xname="price", ylab="Quantity", main="Quantity")
+curve(revenue, from=0, to=100, xname="price", ylab="Revenue", main="Revenue")
+
+par(mfrow=c(1, 1))
+retail_cluster <- online_retail_new_1[,c(4,6)]
+
+library(outliers)
+retail_cluster1 <- rm.outlier(retail_cluster, fill = TRUE, median = TRUE, opposite = FALSE)
+retail_cluster2 <- scale(retail_cluster1)
+
+# Determine number of clusters
+wss <- (nrow(retail_cluster2)-1)*sum(apply(retail_cluster2,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(retail_cluster2, 
+    centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+
+# check out the plot
+
+set.seed(765300) #for reproducibility
+retail_fit <- kmeans(retail_cluster2,6)
+
+# Size
+retail_fit$size
+
+retail_fit$centers
+
+mean <- aggregate(retail_cluster1,by=list(retail_fit$cluster),FUN=mean)
+mean$revenue <- mean$Quantity*mean$UnitPrice
+mean
+
+retail_with_cluster <- data.frame(retail_cluster1, retail_fit$cluster)
+cluster <- c(1:6)
+
+df_fittedn <- data.frame(intercept=c(),price=c(),clusterno=c(),arsquared=c())
+
+rng <- 1:nrow(mean)
+for (i in rng) {
+  cno <- cluster[i]
+df0 <- subset(retail_with_cluster,retail_fit$cluster == cno)
+df1 <- lm(log(Quantity) ~ log(UnitPrice),data = df0)
+df3 <- summary(df1)
+df2 <- cbind(df1$coefficient[1],df1$coefficient[2],cno,df3$adj.r.squared)          
+    df_fittedn <- rbind(df_fittedn, df2)
+
+}
+
+names(df_fittedn) <- c("intercept","price","clusterno","arsquared")
+print(df_fittedn)
+
+#create demand curves using similar products grouped into six clusters
+#
+
+rng1 <- 1:nrow(mean)
+for (i in rng1) {
+quantity <- function(price){exp(df_fittedn[i,1] + df_fittedn[i,2]*log(price))}
+revenue <- function(price) { price * quantity(price) }
+par(mfrow=c(1, 2))
+curve(quantity, from=0, to=100, xname="price", ylab="Quantity", main="Quantity")
+curve(revenue, from=0, to=100, xname="price", ylab="Revenue", main="Revenue")
+}
+
+```
+
+```{r}
+on_ts <- cbind.data.frame(online_retail_new$InvoiceDate,online_retail_new$Quantity)
+names(on_ts) <- c("Date","Quantity")
+on_ts$ddate <- as.integer(on_ts$Date)
+
+library(dplyr)
+on_ts2 <- on_ts %>% group_by(Date) %>% summarise(quantity = sum(Quantity))
+
+length(unique(on_ts2$Date))
+
+on_ts2 <- on_ts2[order(on_ts2$Date),]
+
+units <- on_ts2$quantity
+units1 <- ts(units,frequency = 70)
+
+HW1  <- HoltWinters(units1)
+#HW1
+
+
+## Plot the fitted values
+plot.ts(units1,ylab = "units",ylim = c(0,20000))
+lines(HW1$fitted[,1],lty=2,col ="blue",ylim = c(0,20000))
+
+### Predict the future
+HW1_pred <- predict(HW1,210,prediction.interval = TRUE)
+HW1_pred
+
+
+## Plot the predictions of the estimated model 
+par(mfrow =c(2,1))
+plot.ts(units1,ylab ="units",ylim =c (0,10000),xlim=c(0,250))
+lines(HW1$fitted[,1],lty =2 ,col ="red")
+plot.ts(units1,ylab ="units",col="seagreen",xlim=c(0,300),ylim =c(-5000,10000))
+lines(HW1_pred[,1],col ="red")
+lines(HW1_pred[,2],col ="blue",lty = 2)
+lines(HW1_pred[,3],col ="blue",lty = 2)
+
+```
+
