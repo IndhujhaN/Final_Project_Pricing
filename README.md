@@ -4,7 +4,7 @@ Pricing is a vast, inter-disciplinary field which borrows from marketing, financ
   
 **Keywords**: Marketing, retail, price, elasticity, regression, log-log, clustering, revenue, Holt Winters
 
-![Process Flow of Pricing Optimization](project_map.jpg)
+![Process Flow of Pricing Optimization](Project.png)
 
 
 
