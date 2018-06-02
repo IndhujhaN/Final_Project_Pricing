@@ -4,7 +4,7 @@ Pricing is a vast, inter-disciplinary field which borrows from marketing, financ
   
 **_Keywords_**: Marketing, retail, price, elasticity, regression, log-log, clustering, revenue, Holt Winters
 
-**Link to project details**: [Project Details](https://github.com/IndhujhaN/IndhujhaN.github.io)
+**Link to project (code,data,outputs,paper)**: [Pricing Project on Github](https://github.com/IndhujhaN/IndhujhaN.github.io)
 
 #### **Process Flow of Pricing Optimization**  
 ![Process Flow of Pricing Optimization](Project.png)
