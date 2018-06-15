@@ -1,16 +1,20 @@
 ---
 title: "project_pricing"
-output: word_document
+output:
+  word_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Reading + EDA + Regression
 
 ```{r cars}
-online_retail <- read.csv("C:/Users/Indhujha Natarajan/Dropbox/Harrisburg/Semester 3/Project_pricing/Online Retail.csv")
+setwd("C:/Users/Indhujha Natarajan/Dropbox/Harrisburg/Semester 3/Project_pricing")
+online_retail <- read.csv("C:/Users/Indhujha Natarajan/Dropbox/Harrisburg/Semester 3/Project_pricing/Online Retail.csv",header=T,sep=",")
 summary(online_retail)
 
 online_retail_new <- online_retail[online_retail$UnitPrice > 0.01 & online_retail$Quantity > 0,] #minimum price to get good read of results.
@@ -20,6 +24,65 @@ online_retail_new$StockCode <- as.character(online_retail_new$StockCode)
 online_retail_new$StockCode <- toupper(online_retail_new$StockCode) #convert all to uppercase to remove duplicates
 item1 <- unique(online_retail_new$Description)
 
+#EDA----------------------------------------------------------------------------------
+online_retail_new_eda <- online_retail_new
+online_retail_new_eda$revenue <- online_retail_new$Quantity*online_retail_new$UnitPrice
+
+
+hist(online_retail_new_eda$revenue,
+     xlab="Revenue",main = "Histogram of revenue", 
+     col="skyblue",
+     #xlim=c(0,20000),
+     breaks=20
+     )
+
+hist(online_retail_new_eda$UnitPrice,
+     xlab="UnitPrice", main = "Histogram of UnitPrice",
+     col="orange",
+     #xlim=c(50,2000),
+     breaks= 20
+)
+
+hist(online_retail_new_eda$Quantity,
+     xlab="Quantity", main = "Histogram of Quantity",
+     col="lightgreen",
+     #xlim=c(50,2000),
+     breaks= 20
+)
+
+library(ggplot2)
+# Basic barplot
+library(dplyr)
+p <- online_retail_new_eda %>% select(Country,revenue) %>% group_by(Country) %>% summarise(revenue=sum(revenue))
+p <- p[order(-p$revenue),]   
+  
+p1 <- ggplot(data=p,aes(x=reorder(Country,revenue), y=revenue)) + labs(x="Country") +
+  geom_bar(stat="identity",fill="steelblue") + theme_minimal()
+p1 + coord_flip()
+
+q <- online_retail_new_eda %>% select(CustomerID,revenue) %>% group_by(CustomerID) %>% summarise(revenue=sum(revenue))
+q <- head(arrange(q,desc(revenue)), n = 25)
+
+q1 <- ggplot(data=q,aes(x=reorder(CustomerID,revenue), y=revenue)) + labs(x="CustomerID") +
+  geom_bar(stat="identity",fill="#E69F00") + theme_minimal()
+q1 + coord_flip()
+
+r <- online_retail_new_eda %>% select(Description,revenue) %>% group_by(Description) %>% summarise(revenue=sum(revenue))
+r <- head(arrange(r,desc(revenue)), n = 15)
+
+r1 <- ggplot(data=r,aes(x=reorder(Description,revenue), y=revenue)) + labs(x="Item Description") +
+  geom_bar(stat="identity",fill="pink") + theme_minimal()
+r1 + coord_flip()
+
+ra <- online_retail_new_eda %>% select(Description,revenue) %>% group_by(Description) %>% summarise(revenue=sum(revenue))
+ra <- tail(arrange(ra,desc(revenue)), n = 15)
+
+r2 <- ggplot(data=ra,aes(x=reorder(Description,-revenue), y=revenue)) + labs(x="Item Description") +
+  geom_bar(stat="identity",fill="firebrick4") + theme_minimal()
+r2 + coord_flip()
+
+#EDA-----------------------------------------------------------------------------------------------------
+
 item <- unique(online_retail_new$StockCode)
 write.csv(item,"item.csv")
 df_fitted <- data.frame(intercept=c(),price=c(),ino=c(),arsquared=c())
@@ -27,6 +90,7 @@ df_fitted <- data.frame(intercept=c(),price=c(),ino=c(),arsquared=c())
 rng <- 1:length(item)
 for (i in rng) {
   ino <- item[i]
+  #ino <- 22716
 df0 <- subset(online_retail_new,online_retail_new$StockCode == ino)
 df1 <- lm(log(Quantity) ~ log(UnitPrice),data = df0)
 df3 <- summary(df1)
@@ -34,6 +98,7 @@ df2 <- cbind(df1$coefficient[1],df1$coefficient[2],ino,df3$adj.r.squared)
     df_fitted <- rbind(df_fitted, df2)
 
 }
+
 
 names(df_fitted) <- c("intercept","coeff.price","StockCode","adj.r.squared")
 write.csv(df_fitted,"df_fitted_item_f.csv",row.names = F)
@@ -53,13 +118,13 @@ df_fitted2 <- df_fitted1.1
 online_retail_new_1 <- merge(online_retail_new,df_fitted2,by.y="StockCode")
 
 ctr <- 1:length(item_final)
-price_all <- data.frame(StockCode=c(),price=c(),Quantity=c())
+#price_all <- data.frame(StockCode=c(),price=c(),Quantity=c())
 rev_price <- data.frame(StockCode=c(), rev=c(),opt_price=c())
 
 for (i in ctr)
   {
   ino1 <- item_final[i]
-  #ino1 <- '84805B'
+  #ino1 <- '22716'
   df0 <- online_retail_new_1[online_retail_new_1$StockCode == ino1,]
   df0[,9] <- as.numeric(as.matrix(df0)[,9])
   df0[,10] <- as.numeric(as.matrix(df0)[,10])
@@ -87,9 +152,22 @@ for (i in ctr)
 }
 rev_price <- unique(rev_price)
 write.csv(rev_price,"rev_price.csv",row.names = F)
+hist(rev_price$rev,
+     xlab="Revenue",main = "Histogram of revenue", 
+     col="skyblue",
+     #xlim=c(50,2000),
+     breaks= 15)
+
+hist(rev_price$opt_price,
+     xlab="Optimal Price", main = "Histogram of Optimal Price",
+     col="orange",
+     #xlim=c(50,2000),
+     breaks= seq(0,150,5))
 
 
 ```
+
+# Clustering and Curves
 
 ```{r}
 #84805B - The same curves have been made using curve function for one of the items
@@ -100,8 +178,15 @@ curve(quantity, from=0, to=100, xname="price", ylab="Quantity", main="Quantity")
 curve(revenue, from=0, to=100, xname="price", ylab="Revenue", main="Revenue")
 
 par(mfrow=c(1, 1))
-retail_cluster <- online_retail_new_1[,c(4,6)]
+#retail_cluster <- online_retail_new_1[,c(4,6)]
+library(dplyr)
+online_retail_new_2 <- merge(online_retail_new,df_fitted1,by.y="StockCode")
+retail_clusteri <- online_retail_new_2[,c(1,4,6)]
+#retail_clusteri <- online_retail_new[,c(2,4,6)]
+retail_clusteri$sales <- retail_clusteri$Quantity * retail_clusteri$UnitPrice
+retail_cluster <- retail_clusteri %>% group_by(StockCode) %>% summarise(Quantity= sum(Quantity),UnitPrice = sum(sales)/sum(Quantity))
 
+retail_cluster <- retail_cluster[,c(2,3)]
 library(outliers)
 retail_cluster1 <- rm.outlier(retail_cluster, fill = TRUE, median = TRUE, opposite = FALSE)
 retail_cluster2 <- scale(retail_cluster1)
@@ -116,7 +201,9 @@ plot(1:15, wss, type="b", xlab="Number of Clusters",
 # check out the plot
 
 set.seed(765300) #for reproducibility
-retail_fit <- kmeans(retail_cluster2,6)
+retail_fit <- kmeans(retail_cluster2,3)
+
+plot(retail_cluster2, col=(retail_fit$cluster +1),main="K-means result with 3 clusters",pch=20,cex=2)
 
 # Size
 retail_fit$size
@@ -128,7 +215,7 @@ mean$revenue <- mean$Quantity*mean$UnitPrice
 mean
 
 retail_with_cluster <- data.frame(retail_cluster1, retail_fit$cluster)
-cluster <- c(1:6)
+cluster <- c(1:3)
 
 df_fittedn <- data.frame(intercept=c(),price=c(),clusterno=c(),arsquared=c())
 
@@ -143,11 +230,9 @@ df2 <- cbind(df1$coefficient[1],df1$coefficient[2],cno,df3$adj.r.squared)
 
 }
 
-names(df_fittedn) <- c("intercept","price","clusterno","arsquared")
+names(df_fittedn) <- c("intercept","coeff.price","clusterno","arsquared")
 print(df_fittedn)
 
-#create demand curves using similar products grouped into six clusters
-#
 
 rng1 <- 1:nrow(mean)
 for (i in rng1) {
@@ -156,46 +241,76 @@ revenue <- function(price) { price * quantity(price) }
 par(mfrow=c(1, 2))
 curve(quantity, from=0, to=100, xname="price", ylab="Quantity", main="Quantity")
 curve(revenue, from=0, to=100, xname="price", ylab="Revenue", main="Revenue")
+c <- optimize(revenue, interval=c(0,100),maximum=TRUE)
+print(i)
+print("Optimal Price")
+print(c$maximum)
+print("Maximum revenue")
+print(c$objective)
+c <- c()
 }
 
 ```
 
+# Time Series : Holt Winters
+
 ```{r}
-on_ts <- cbind.data.frame(online_retail_new$InvoiceDate,online_retail_new$Quantity)
-names(on_ts) <- c("Date","Quantity")
-on_ts$ddate <- as.integer(on_ts$Date)
+on_ts <- read.csv("C:/Users/Indhujha Natarajan/Dropbox/Harrisburg/Semester 3/Project_pricing/on_ts.csv")
 
-library(dplyr)
-on_ts2 <- on_ts %>% group_by(Date) %>% summarise(quantity = sum(Quantity))
+units <- on_ts$quantity
+units1 <- ts(units,frequency = 7)
 
-length(unique(on_ts2$Date))
+library(tseries)
+adf.test(units1, alternative="stationary", k=0)
 
-on_ts2 <- on_ts2[order(on_ts2$Date),]
+plot(units1)
+#
+boxplot(units1~cycle(units1))
 
-units <- on_ts2$quantity
-units1 <- ts(units,frequency = 70)
+#This will aggregate the cycles and display a week over week trend
+plot(aggregate(units1,FUN=mean))
 
-HW1  <- HoltWinters(units1)
+units1Comp <- decompose(units1)
+plot(units1Comp)
+
 #HW1
+HW1  <- HoltWinters(units1)
 
 
 ## Plot the fitted values
-plot.ts(units1,ylab = "units",ylim = c(0,20000))
-lines(HW1$fitted[,1],lty=2,col ="blue",ylim = c(0,20000))
+head(HW1$fitted)
+plot.ts(units1,ylab = "units")
+lines(HW1$fitted[,1],lty=2,col ="blue")
 
-### Predict the future
-HW1_pred <- predict(HW1,210,prediction.interval = TRUE)
+#------excel check
+forecast_actual <- cbind.data.frame(HW1$fitted[,1],units1[c(8:371)])
+write.csv(forecast_actual,"forecast_actual.csv",row.names = F)
+#-------
+HW1
+rmse1 <- sqrt(HW1$SSE/length(HW1$fitted[,1]))
+rmse1
+
+### Predict the future  about 1/3 of the data
+HW1_pred <- predict(HW1,126,prediction.interval = TRUE)
 HW1_pred
 
 
 ## Plot the predictions of the estimated model 
-par(mfrow =c(2,1))
-plot.ts(units1,ylab ="units",ylim =c (0,10000),xlim=c(0,250))
-lines(HW1$fitted[,1],lty =2 ,col ="red")
-plot.ts(units1,ylab ="units",col="seagreen",xlim=c(0,300),ylim =c(-5000,10000))
+par(mfrow =c(1,1))
+#plot.ts(units1,ylab ="units")
+#lines(HW1$fitted[,1],lty =2 ,col ="red")
+plot.ts(units1,ylab ="units",col="seagreen",xlim=c(0,70),ylim=c(-40000,75000))
 lines(HW1_pred[,1],col ="red")
 lines(HW1_pred[,2],col ="blue",lty = 2)
 lines(HW1_pred[,3],col ="blue",lty = 2)
+
+library(forecast)
+HW1_pred1 <- forecast:::forecast.HoltWinters(HW1, h=126) # predict 126 days ahead
+forecast:::plot.forecast(HW1_pred1)
+
+acf(HW1_pred1$residuals[c(8:371)])
+Box.test(HW1_pred1$residuals, type='Ljung-Box')
+plot.ts(HW1_pred1$residuals)
 
 ```
 
